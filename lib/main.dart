@@ -38,7 +38,7 @@ class SmartCaneApp extends StatelessWidget {
   }
 }
 
-// Checks whether onboarding has already been completed.
+// Loads first-launch state, then shows the tutorial before onboarding.
 class AppEntry extends StatefulWidget {
   const AppEntry({super.key});
 
@@ -49,7 +49,7 @@ class AppEntry extends StatefulWidget {
 class _AppEntryState extends State<AppEntry> {
   bool _loading = true;
   bool _firstLaunch = true;
-  bool _routed = false;
+  Widget? _activeScreen;
 
   @override
   void initState() {
@@ -77,26 +77,49 @@ class _AppEntryState extends State<AppEntry> {
   }
 
   void _continue() {
-    if (!mounted || _loading || _routed) return;
-    _routed = true;
-    final Widget destination = _firstLaunch
+    if (!mounted || _loading || _activeScreen != null) return;
+    setState(() {
+      _activeScreen = _firstLaunch
+        ? TutorialScreen(onFinished: _finishTutorial)
+        : const MainShell();
+    });
+  }
+
+  void _finishTutorial() {
+    if (!mounted) return;
+    setState(() {
+      _activeScreen = _firstLaunch
         ? OnboardingScreen(onFinished: _finishOnboarding)
         : const MainShell();
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder<void>(
-        pageBuilder: (_, animation, secondaryAnimation) => destination,
-        transitionsBuilder: (_, animation, secondaryAnimation, child) =>
-            FadeTransition(opacity: animation, child: child),
-        transitionDuration: const Duration(milliseconds: 350),
-      ),
-    );
+    });
   }
 
   @override
-  Widget build(BuildContext context) => SplashScreen(
+  Widget build(BuildContext context) {
+    final screen = _activeScreen;
+    if (screen == null) {
+      return SplashScreen(
         onComplete: _continue,
         loadingPreferences: _loading,
       );
+    }
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 360),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) => SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0.06, 0),
+          end: Offset.zero,
+        ).animate(animation),
+        child: child,
+      ),
+      child: KeyedSubtree(
+        key: ValueKey(screen.runtimeType),
+        child: screen,
+      ),
+    );
+  }
 }
 
 // -------------------- SPLASH + CODE-DRAWN LOGO --------------------
@@ -117,8 +140,6 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
-  late final Animation<double> _fade;
-  late final Animation<double> _scale;
   bool _called = false;
 
   @override
@@ -126,11 +147,7 @@ class _SplashScreenState extends State<SplashScreen>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    );
-    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
-    _scale = Tween<double>(begin: 0.72, end: 1).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutBack),
+      duration: const Duration(milliseconds: 1800),
     );
     _controller.repeat(reverse: true);
     Future.delayed(const Duration(seconds: 10), () {
@@ -148,47 +165,53 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final compact = size.height < 700;
+    final logoBox = compact ? 156.0 : 178.0;
+    final logoSize = compact ? 116.0 : 136.0;
+
     return Scaffold(
-      body: Container(
-        color: const Color(0xFF0B0F0D),
-        child: SafeArea(
-          child: FadeTransition(
-            opacity: _fade,
-            child: Column(
-              children: [
-                const Spacer(flex: 3),
-                ScaleTransition(
-                  scale: _scale,
-                  child: AnimatedBuilder(
+      backgroundColor: const Color(0xFF0B0F0D),
+      body: SizedBox.expand(
+        child: DecoratedBox(
+          decoration: const BoxDecoration(color: Color(0xFF0B0F0D)),
+          child: SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) => Column(
+                children: [
+                  const Spacer(flex: 2),
+                  AnimatedBuilder(
                     animation: _controller,
-                    builder: (context, child) => SizedBox(
-                      width: 178,
-                      height: 178,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          for (var i = 0; i < 3; i++)
-                            Container(
-                              width: 144 + i * 15 + _controller.value * 7,
-                              height: 144 + i * 15 + _controller.value * 7,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: brightGreen.withValues(
-                                    alpha: 0.16 - i * 0.035,
+                    builder: (context, child) {
+                      final pulse = Curves.easeInOut.transform(_controller.value);
+                      return SizedBox(
+                        width: logoBox,
+                        height: logoBox,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            for (var i = 0; i < 3; i++)
+                              Container(
+                                width: logoBox * (0.70 + i * 0.12 + pulse * 0.025),
+                                height: logoBox * (0.70 + i * 0.12 + pulse * 0.025),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: brightGreen.withValues(
+                                      alpha: 0.12 + (1 - pulse) * 0.08 - i * 0.025,
+                                    ),
+                                    width: 1.2,
                                   ),
-                                  width: 1.2,
                                 ),
                               ),
-                            ),
-                          child!,
-                        ],
-                      ),
-                    ),
-                    child: const SmartCaneLogo(size: 136),
+                            child!,
+                          ],
+                        ),
+                      );
+                    },
+                    child: SmartCaneLogo(size: logoSize),
                   ),
-                ),
-                const SizedBox(height: 28),
+                  SizedBox(height: compact ? 18 : 28),
                 const Text(
                   'SMART CANE',
                   style: TextStyle(
@@ -198,7 +221,7 @@ class _SplashScreenState extends State<SplashScreen>
                     letterSpacing: 4,
                   ),
                 ),
-                const SizedBox(height: 10),
+                  const SizedBox(height: 10),
                 Text(
                   'SMARTER MOVEMENT. GREATER CONFIDENCE.',
                   style: TextStyle(
@@ -208,7 +231,7 @@ class _SplashScreenState extends State<SplashScreen>
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const Spacer(flex: 2),
+                  const Spacer(flex: 2),
                 const SizedBox(
                   width: 150,
                   child: LinearProgressIndicator(
@@ -218,7 +241,7 @@ class _SplashScreenState extends State<SplashScreen>
                     valueColor: AlwaysStoppedAnimation<Color>(brightGreen),
                   ),
                 ),
-                const SizedBox(height: 18),
+                  const SizedBox(height: 18),
                 Text(
                   widget.loadingPreferences
                       ? 'Preparing your experience...'
@@ -228,9 +251,9 @@ class _SplashScreenState extends State<SplashScreen>
                     fontSize: 12,
                   ),
                 ),
-                const Spacer(),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 24),
+                  const Spacer(),
+                  Padding(
+                  padding: EdgeInsets.only(bottom: compact ? 12 : 24),
                   child: Text(
                     'SMART CANE  •  MOBILITY COMPANION',
                     textAlign: TextAlign.center,
@@ -241,7 +264,8 @@ class _SplashScreenState extends State<SplashScreen>
                     ),
                   ),
                 ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -1360,11 +1384,8 @@ class _TutorialScreenState extends State<TutorialScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
         title: const Text('Quick tutorial'),
-        leading: IconButton(
-          icon: const Icon(Icons.close_rounded),
-          onPressed: widget.onFinished,
-        ),
       ),
       body: SafeArea(
         child: Padding(
@@ -1378,49 +1399,94 @@ class _TutorialScreenState extends State<TutorialScreen> {
                   onPageChanged: (i) => setState(() => _index = i),
                   itemBuilder: (context, i) {
                     final step = _steps[i];
-                    return Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 180,
-                          height: 180,
-                          decoration: const BoxDecoration(
-                            color: lightGreen,
-                            shape: BoxShape.circle,
+                    return LayoutBuilder(
+                      builder: (context, constraints) => SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(minHeight: constraints.maxHeight - 32),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              TweenAnimationBuilder<double>(
+                                key: ValueKey('tutorial-icon-$i'),
+                                tween: Tween(begin: 0.82, end: 1),
+                                duration: const Duration(milliseconds: 480),
+                                curve: Curves.easeOutBack,
+                                builder: (context, scale, child) => Transform.scale(
+                                  scale: scale,
+                                  child: child,
+                                ),
+                                child: Container(
+                                  width: constraints.maxHeight < 560 ? 132 : 168,
+                                  height: constraints.maxHeight < 560 ? 132 : 168,
+                                  decoration: BoxDecoration(
+                                    color: lightGreen,
+                                    shape: BoxShape.circle,
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: primaryGreen.withValues(alpha: 0.12),
+                                        blurRadius: 28,
+                                        spreadRadius: 2,
+                                      ),
+                                    ],
+                                  ),
+                                  child: Icon(
+                                    step.icon,
+                                    size: constraints.maxHeight < 560 ? 64 : 76,
+                                    color: primaryGreen,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              Text(
+                                'STEP ${i + 1} OF ${_steps.length}',
+                                style: const TextStyle(
+                                  color: primaryGreen,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 2,
+                                  fontSize: 11,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 260),
+                                transitionBuilder: (child, animation) => SlideTransition(
+                                  position: Tween<Offset>(
+                                    begin: const Offset(0, 0.12),
+                                    end: Offset.zero,
+                                  ).animate(animation),
+                                  child: FadeTransition(opacity: animation, child: child),
+                                ),
+                                child: Text(
+                                  step.title,
+                                  key: ValueKey('tutorial-title-$i'),
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: darkGreen,
+                                    fontSize: 29,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+                              AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 300),
+                                child: Text(
+                                  step.description,
+                                  key: ValueKey('tutorial-description-$i'),
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Colors.grey.shade700,
+                                    height: 1.6,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          child: Icon(step.icon, size: 84, color: primaryGreen),
                         ),
-                        const SizedBox(height: 30),
-                        Text(
-                          'STEP ${i + 1} OF ${_steps.length}',
-                          style: const TextStyle(
-                            color: primaryGreen,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 2,
-                            fontSize: 11,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          step.title,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: darkGreen,
-                            fontSize: 30,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                        Text(
-                          step.description,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.grey.shade700,
-                            height: 1.6,
-                            fontSize: 15,
-                          ),
-                        ),
-                      ],
+                      ),
                     );
                   },
                 ),
@@ -1445,15 +1511,30 @@ class _TutorialScreenState extends State<TutorialScreen> {
               SizedBox(
                 width: double.infinity,
                 height: 54,
-                child: FilledButton(
-                  onPressed: _next,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: primaryGreen,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.96, end: 1),
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOut,
+                  builder: (context, scale, child) => Transform.scale(
+                    scale: scale,
+                    child: child,
+                  ),
+                  child: FilledButton(
+                    onPressed: _next,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: primaryGreen,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 180),
+                      child: Text(
+                        _index == _steps.length - 1 ? 'Finish tutorial' : 'Next',
+                        key: ValueKey(_index == _steps.length - 1),
+                      ),
                     ),
                   ),
-                  child: Text(_index == _steps.length - 1 ? 'Finish tutorial' : 'Next'),
                 ),
               ),
               TextButton(
