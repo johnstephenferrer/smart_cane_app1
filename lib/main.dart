@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_classic_bluetooth/flutter_classic_bluetooth.dart';
@@ -275,7 +276,8 @@ class _SplashScreenState extends State<SplashScreen>
 
 class SmartCaneLogo extends StatelessWidget {
   final double size;
-  const SmartCaneLogo({super.key, this.size = 112});
+  final bool glow;
+  const SmartCaneLogo({super.key, this.size = 112, this.glow = true});
 
   @override
   Widget build(BuildContext context) {
@@ -291,13 +293,15 @@ class SmartCaneLogo extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(size * 0.27),
         border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
-        boxShadow: [
-          BoxShadow(
-            color: brightGreen.withValues(alpha: 0.32),
-            blurRadius: size * 0.24,
-            spreadRadius: 2,
-          ),
-        ],
+        boxShadow: glow
+            ? [
+                BoxShadow(
+                  color: brightGreen.withValues(alpha: 0.32),
+                  blurRadius: size * 0.24,
+                  spreadRadius: 2,
+                ),
+              ]
+            : const [],
       ),
       child: const CustomPaint(painter: _SmartCaneLogoPainter()),
     );
@@ -696,6 +700,120 @@ class _IntroContent extends StatelessWidget {
 
 enum AppTab { home, sensors, battery, bluetooth }
 
+enum BatteryCondition { high, medium, low, replace }
+
+String batteryConditionText(BatteryCondition? condition) => switch (condition) {
+  BatteryCondition.high => 'High',
+  BatteryCondition.medium => 'Medium',
+  BatteryCondition.low => 'Low',
+  BatteryCondition.replace => 'Replace battery',
+  null => 'Unavailable',
+};
+
+String formatDistance(double value) => value == value.roundToDouble()
+    ? value.toStringAsFixed(0)
+    : value.toStringAsFixed(1);
+
+String distanceForScreenReader(double? value) => value == null
+    ? 'no reading received'
+    : '${formatDistance(value)} centimeters';
+
+class CaneTelemetry extends ChangeNotifier {
+  double? upperCm;
+  double? lowerCm;
+  BatteryCondition? batteryCondition;
+  bool? buzzerOn;
+  bool? vibrationOn;
+  bool connected = false;
+  DateTime? lastUpdate;
+  int acceptedMessages = 0;
+  Timer? _staleTimer;
+
+  bool applyJson(Map<String, dynamic> json) {
+    // Accept newline-delimited JSON from the HC-05. Example packet:
+    // {"upperCm":42.5,"lowerCm":18,"batteryStatus":"medium","buzzer":false,"vibration":false}\n
+    const keys = {'upperCm', 'lowerCm', 'batteryStatus', 'buzzer', 'vibration'};
+    if (!json.keys.any(keys.contains)) return false;
+
+    if (json.containsKey('upperCm')) {
+      upperCm = _distance(json['upperCm'], max: 100);
+    }
+    if (json.containsKey('lowerCm')) {
+      lowerCm = _distance(json['lowerCm'], max: 50);
+    }
+    if (json.containsKey('batteryStatus')) {
+      batteryCondition = _batteryCondition(json['batteryStatus']);
+    }
+    if (json.containsKey('buzzer')) buzzerOn = _boolean(json['buzzer']);
+    if (json.containsKey('vibration')) {
+      vibrationOn = _boolean(json['vibration']);
+    }
+
+    lastUpdate = DateTime.now();
+    acceptedMessages++;
+    _staleTimer?.cancel();
+    _staleTimer = Timer(const Duration(seconds: 5), () {
+      clearReadings();
+      notifyListeners();
+    });
+    notifyListeners();
+    return true;
+  }
+
+  void setConnected(bool value) {
+    if (connected == value) return;
+    connected = value;
+    if (value) acceptedMessages = 0;
+    if (!value) clearReadings();
+    notifyListeners();
+  }
+
+  void clearReadings() {
+    _staleTimer?.cancel();
+    _staleTimer = null;
+    upperCm = null;
+    lowerCm = null;
+    batteryCondition = null;
+    buzzerOn = null;
+    vibrationOn = null;
+    lastUpdate = null;
+  }
+
+  @override
+  void dispose() {
+    _staleTimer?.cancel();
+    super.dispose();
+  }
+
+  static double? _distance(dynamic value, {required double max}) {
+    if (value == null) return null;
+    final parsed = value is num ? value.toDouble() : double.tryParse('$value');
+    if (parsed == null || !parsed.isFinite || parsed < 0 || parsed > max) {
+      return null;
+    }
+    return parsed;
+  }
+
+  static bool? _boolean(dynamic value) {
+    if (value is bool) return value;
+    if (value == 1 || value == '1' || value == 'true') return true;
+    if (value == 0 || value == '0' || value == 'false') return false;
+    return null;
+  }
+
+  static BatteryCondition? _batteryCondition(dynamic value) {
+    if (value == null) return null;
+    final normalized = '$value'.trim().toLowerCase();
+    return switch (normalized) {
+      'high' => BatteryCondition.high,
+      'medium' || 'mid' => BatteryCondition.medium,
+      'low' => BatteryCondition.low,
+      'replace' || 'replace battery' => BatteryCondition.replace,
+      _ => null,
+    };
+  }
+}
+
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
 
@@ -705,6 +823,13 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> {
   AppTab _tab = AppTab.home;
+  final CaneTelemetry _telemetry = CaneTelemetry();
+
+  @override
+  void dispose() {
+    _telemetry.dispose();
+    super.dispose();
+  }
 
   void _openTutorial() {
     Navigator.of(context).push(
@@ -719,14 +844,15 @@ class _MainShellState extends State<MainShell> {
   Widget build(BuildContext context) {
     final pages = <Widget>[
       HomeScreen(
+        telemetry: _telemetry,
         onOpenSensors: () => setState(() => _tab = AppTab.sensors),
         onOpenBluetooth: () => setState(() => _tab = AppTab.bluetooth),
         onOpenBattery: () => setState(() => _tab = AppTab.battery),
         onOpenTutorial: _openTutorial,
       ),
-      const SensorsScreen(),
-      const BatteryScreen(),
-      const BluetoothScreen(),
+      SensorsScreen(telemetry: _telemetry),
+      BatteryScreen(telemetry: _telemetry),
+      BluetoothScreen(telemetry: _telemetry),
     ];
     final selected = AppTab.values.indexOf(_tab);
 
@@ -796,6 +922,7 @@ class _MainShellState extends State<MainShell> {
 // -------------------- HOME DASHBOARD --------------------
 
 class HomeScreen extends StatefulWidget {
+  final CaneTelemetry telemetry;
   final VoidCallback? onOpenSensors;
   final VoidCallback? onOpenBluetooth;
   final VoidCallback? onOpenBattery;
@@ -803,6 +930,7 @@ class HomeScreen extends StatefulWidget {
 
   const HomeScreen({
     super.key,
+    required this.telemetry,
     this.onOpenSensors,
     this.onOpenBluetooth,
     this.onOpenBattery,
@@ -817,6 +945,7 @@ class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _entrance;
   late final AnimationController _pulse;
+  bool? _reducedMotion;
 
   @override
   void initState() {
@@ -836,6 +965,22 @@ class _HomeScreenState extends State<HomeScreen>
     _entrance.dispose();
     _pulse.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    if (_reducedMotion == reduceMotion) return;
+    _reducedMotion = reduceMotion;
+    if (reduceMotion) {
+      _pulse.stop();
+      _pulse.value = 0;
+      _entrance.value = 1;
+    } else if (!_pulse.isAnimating) {
+      _pulse.repeat(reverse: true);
+      _entrance.forward();
+    }
   }
 
   Widget _reveal(int index, Widget child) {
@@ -879,284 +1024,310 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         ],
       ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            _reveal(
-              0,
-              Container(
-                clipBehavior: Clip.antiAlias,
-                padding: const EdgeInsets.all(22),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF17231C), Color(0xFF263B2D)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(26),
-                  border: Border.all(
-                    color: brightGreen.withValues(alpha: 0.25),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: darkGreen.withValues(alpha: 0.14),
-                      blurRadius: 24,
-                      offset: const Offset(0, 12),
+      body: AnimatedBuilder(
+        animation: widget.telemetry,
+        builder: (context, _) => SafeArea(
+          child: ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              _reveal(
+                0,
+                Container(
+                  clipBehavior: Clip.antiAlias,
+                  padding: const EdgeInsets.all(22),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF17231C), Color(0xFF263B2D)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                  ],
-                ),
-                child: Stack(
-                  children: [
-                    Positioned(
-                      right: -34,
-                      top: -46,
-                      child: AnimatedBuilder(
-                        animation: _pulse,
-                        builder: (context, _) {
-                          final pulse = Curves.easeInOut.transform(
-                            _pulse.value,
-                          );
-                          return Container(
-                            width: 146 + 16 * pulse,
-                            height: 146 + 16 * pulse,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: brightGreen.withValues(
-                                  alpha: 0.08 + pulse * 0.10,
-                                ),
-                                width: 1.4,
-                              ),
-                            ),
-                          );
-                        },
+                    borderRadius: BorderRadius.circular(26),
+                    border: Border.all(
+                      color: brightGreen.withValues(alpha: 0.25),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: darkGreen.withValues(alpha: 0.14),
+                        blurRadius: 24,
+                        offset: const Offset(0, 12),
                       ),
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const SmartCaneLogo(size: 54),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'SMART CANE',
-                                    style: TextStyle(
-                                      color: Colors.white.withValues(
-                                        alpha: 0.78,
+                    ],
+                  ),
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        right: -34,
+                        top: -46,
+                        child: AnimatedBuilder(
+                          animation: _pulse,
+                          builder: (context, _) {
+                            final pulse = Curves.easeInOut.transform(
+                              _pulse.value,
+                            );
+                            return Container(
+                              width: 146 + 16 * pulse,
+                              height: 146 + 16 * pulse,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: brightGreen.withValues(
+                                    alpha: 0.08 + pulse * 0.10,
+                                  ),
+                                  width: 1.4,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const SmartCaneLogo(size: 54, glow: false),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'SMART CANE',
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(
+                                          alpha: 0.78,
+                                        ),
+                                        fontSize: 11,
+                                        letterSpacing: 2,
+                                        fontWeight: FontWeight.w800,
                                       ),
-                                      fontSize: 11,
-                                      letterSpacing: 2,
-                                      fontWeight: FontWeight.w800,
                                     ),
-                                  ),
-                                  const SizedBox(height: 7),
-                                  _ConnectionPill(
-                                    onTap: widget.onOpenBluetooth,
-                                  ),
-                                ],
+                                    const SizedBox(height: 7),
+                                    _ConnectionPill(
+                                      connected: widget.telemetry.connected,
+                                      onTap: widget.onOpenBluetooth,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 23),
+                          const Text(
+                            'Your safety,\nwithin reach.',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 28,
+                              height: 1.12,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 9),
+                          Text(
+                            'Monitor your cane at a glance.',
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.76),
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              _reveal(1, const SectionTitle('DEVICE STATUS')),
+              const SizedBox(height: 12),
+              _reveal(
+                1,
+                _DashboardActionCard(
+                  onTap: widget.onOpenBluetooth,
+                  child: Row(
+                    children: [
+                      _StatusGlyph(icon: Icons.bluetooth_rounded),
+                      SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Bluetooth',
+                              style: TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              widget.telemetry.connected
+                                  ? 'Connected'
+                                  : 'Not connected',
+                              style: TextStyle(
+                                color: Color(0xFF6B7280),
+                                fontSize: 12,
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 23),
-                        const Text(
-                          'Your safety,\nwithin reach.',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 28,
-                            height: 1.12,
-                            fontWeight: FontWeight.w800,
+                      ),
+                      Text(
+                        'Connect',
+                        style: TextStyle(
+                          color: primaryGreen,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      SizedBox(width: 5),
+                      Icon(
+                        Icons.arrow_forward_ios_rounded,
+                        size: 14,
+                        color: primaryGreen,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 22),
+              _reveal(
+                2,
+                SectionTitle(
+                  'SENSOR MONITOR',
+                  action: 'View all',
+                  onAction: widget.onOpenSensors,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _reveal(
+                2,
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final columns = constraints.maxWidth < 360 ? 1 : 2;
+                    final tileWidth =
+                        (constraints.maxWidth - (columns - 1) * 12) / columns;
+                    return Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        SizedBox(
+                          width: tileWidth,
+                          child: SensorCard(
+                            title: 'Upper sensor',
+                            subtitle: 'Above-ground hazards',
+                            range: '100 cm',
+                            icon: Icons.vertical_align_top_rounded,
+                            onTap: widget.onOpenSensors,
+                            reading: widget.telemetry.upperCm,
                           ),
                         ),
-                        const SizedBox(height: 9),
-                        Text(
-                          'Monitor your cane at a glance.',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.76),
-                            fontSize: 13,
+                        SizedBox(
+                          width: tileWidth,
+                          child: SensorCard(
+                            title: 'Lower sensor',
+                            subtitle: 'Ground hazards',
+                            range: '50 cm',
+                            icon: Icons.vertical_align_bottom_rounded,
+                            onTap: widget.onOpenSensors,
+                            reading: widget.telemetry.lowerCm,
                           ),
                         ),
                       ],
-                    ),
-                  ],
+                    );
+                  },
                 ),
               ),
-            ),
-            const SizedBox(height: 24),
-            _reveal(1, const SectionTitle('DEVICE STATUS')),
-            const SizedBox(height: 12),
-            _reveal(
-              1,
-              _DashboardActionCard(
-                onTap: widget.onOpenBluetooth,
-                child: const Row(
-                  children: [
-                    _StatusGlyph(icon: Icons.bluetooth_rounded),
-                    SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Bluetooth',
-                            style: TextStyle(fontWeight: FontWeight.w800),
+              const SizedBox(height: 22),
+              _reveal(3, const SectionTitle('ALERT SYSTEM')),
+              const SizedBox(height: 12),
+              _reveal(
+                3,
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final columns = constraints.maxWidth < 360 ? 1 : 2;
+                    final tileWidth =
+                        (constraints.maxWidth - (columns - 1) * 12) / columns;
+                    return Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        SizedBox(
+                          width: tileWidth,
+                          child: StatusCard(
+                            title: 'Buzzer',
+                            subtitle: widget.telemetry.buzzerOn == null
+                                ? 'Not reporting'
+                                : widget.telemetry.buzzerOn!
+                                ? 'Active'
+                                : 'Standby',
+                            icon: Icons.notifications_active_outlined,
                           ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Not connected',
-                            style: TextStyle(
-                              color: Color(0xFF6B7280),
-                              fontSize: 12,
-                            ),
+                        ),
+                        SizedBox(
+                          width: tileWidth,
+                          child: StatusCard(
+                            title: 'Vibration',
+                            subtitle: widget.telemetry.vibrationOn == null
+                                ? 'Not reporting'
+                                : widget.telemetry.vibrationOn!
+                                ? 'Active'
+                                : 'Standby',
+                            icon: Icons.vibration_rounded,
                           ),
-                        ],
-                      ),
-                    ),
-                    Text(
-                      'Connect',
-                      style: TextStyle(
-                        color: primaryGreen,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    SizedBox(width: 5),
-                    Icon(
-                      Icons.arrow_forward_ios_rounded,
-                      size: 14,
-                      color: primaryGreen,
-                    ),
-                  ],
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ),
-            ),
-            const SizedBox(height: 22),
-            _reveal(
-              2,
-              SectionTitle(
-                'SENSOR MONITOR',
-                action: 'View all',
-                onAction: widget.onOpenSensors,
-              ),
-            ),
-            const SizedBox(height: 12),
-            _reveal(
-              2,
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final columns = constraints.maxWidth < 360 ? 1 : 2;
-                  final tileWidth =
-                      (constraints.maxWidth - (columns - 1) * 12) / columns;
-                  return Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
+              const SizedBox(height: 22),
+              _reveal(
+                4,
+                _DashboardActionCard(
+                  onTap: widget.onOpenBattery,
+                  child: Row(
                     children: [
-                      SizedBox(
-                        width: tileWidth,
-                        child: SensorCard(
-                          title: 'Upper sensor',
-                          subtitle: 'Above-ground hazards',
-                          range: '100 cm',
-                          icon: Icons.vertical_align_top_rounded,
-                          onTap: widget.onOpenSensors,
+                      _StatusGlyph(icon: Icons.battery_unknown_rounded),
+                      SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Battery',
+                              style: TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              'Condition: ${batteryConditionText(widget.telemetry.batteryCondition)}',
+                              style: TextStyle(
+                                color: Color(0xFF6B7280),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      SizedBox(
-                        width: tileWidth,
-                        child: SensorCard(
-                          title: 'Lower sensor',
-                          subtitle: 'Ground hazards',
-                          range: '50 cm',
-                          icon: Icons.vertical_align_bottom_rounded,
-                          onTap: widget.onOpenSensors,
-                        ),
+                      Icon(
+                        Icons.arrow_forward_ios_rounded,
+                        size: 14,
+                        color: charcoalText,
                       ),
                     ],
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 22),
-            _reveal(3, const SectionTitle('ALERT SYSTEM')),
-            const SizedBox(height: 12),
-            _reveal(
-              3,
-              const Row(
-                children: [
-                  Expanded(
-                    child: StatusCard(
-                      title: 'Buzzer',
-                      subtitle: 'Not reporting',
-                      icon: Icons.notifications_active_outlined,
-                    ),
                   ),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: StatusCard(
-                      title: 'Vibration',
-                      subtitle: 'Not reporting',
-                      icon: Icons.vibration_rounded,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 22),
-            _reveal(
-              4,
-              _DashboardActionCard(
-                onTap: widget.onOpenBattery,
-                child: const Row(
-                  children: [
-                    _StatusGlyph(icon: Icons.battery_unknown_rounded),
-                    SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Battery',
-                            style: TextStyle(fontWeight: FontWeight.w800),
-                          ),
-                          SizedBox(height: 4),
-                          Text(
-                            'Status unavailable',
-                            style: TextStyle(
-                              color: Color(0xFF6B7280),
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Icon(
-                      Icons.arrow_forward_ios_rounded,
-                      size: 14,
-                      color: charcoalText,
-                    ),
-                  ],
                 ),
               ),
-            ),
-            const SizedBox(height: 14),
-            _reveal(5, const DemoNotice()),
-            if (widget.onOpenTutorial != null) ...[
               const SizedBox(height: 14),
-              _reveal(
-                5,
-                OutlinedButton.icon(
-                  onPressed: widget.onOpenTutorial,
-                  icon: const Icon(Icons.school_outlined),
-                  label: const Text('Learn how Smart Cane works'),
+              _reveal(5, const DemoNotice()),
+              if (widget.onOpenTutorial != null) ...[
+                const SizedBox(height: 14),
+                _reveal(
+                  5,
+                  OutlinedButton.icon(
+                    onPressed: widget.onOpenTutorial,
+                    icon: const Icon(Icons.school_outlined),
+                    label: const Text('Learn how Smart Cane works'),
+                  ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -1164,8 +1335,9 @@ class _HomeScreenState extends State<HomeScreen>
 }
 
 class _ConnectionPill extends StatelessWidget {
+  final bool connected;
   final VoidCallback? onTap;
-  const _ConnectionPill({this.onTap});
+  const _ConnectionPill({required this.connected, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -1180,18 +1352,23 @@ class _ConnectionPill extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 7,
-                height: 7,
-                decoration: const BoxDecoration(
-                  color: brightGreen,
-                  shape: BoxShape.circle,
+              Semantics(
+                label: connected
+                    ? 'Bluetooth connected'
+                    : 'Bluetooth disconnected',
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: connected ? brightGreen : Colors.white70,
+                    shape: BoxShape.circle,
+                  ),
                 ),
               ),
               const SizedBox(width: 7),
-              const Text(
-                'DISCONNECTED',
-                style: TextStyle(
+              Text(
+                connected ? 'CONNECTED' : 'DISCONNECTED',
+                style: const TextStyle(
                   color: Colors.white,
                   fontSize: 9,
                   letterSpacing: 1,
@@ -1264,41 +1441,66 @@ class _DashboardActionCardState extends State<_DashboardActionCard> {
 // -------------------- SENSORS / BATTERY / BLUETOOTH --------------------
 
 class SensorsScreen extends StatelessWidget {
-  const SensorsScreen({super.key});
+  final CaneTelemetry telemetry;
+  const SensorsScreen({super.key, required this.telemetry});
 
   @override
   Widget build(BuildContext context) {
     return AppPage(
       title: 'Sensors',
       subtitle: 'Two detection zones, one overview.',
-      children: const [
-        DemoNotice(),
-        SizedBox(height: 16),
-        SensorDetailCard(
+      children: [
+        const DemoNotice(),
+        const SizedBox(height: 16),
+        const SensorDetailCard(
           icon: Icons.vertical_align_top_rounded,
           title: 'Upper detection zone',
           description: 'Designed for obstacles above the lower walking path, such as walls or hanging objects.',
           range: '100 cm',
         ),
-        SizedBox(height: 14),
-        SensorDetailCard(
+        const SizedBox(height: 14),
+        const SensorDetailCard(
           icon: Icons.vertical_align_bottom_rounded,
           title: 'Lower detection zone',
           description: 'Designed for ground-level obstacles such as steps, debris, or uneven surfaces.',
           range: '50 cm',
         ),
-        SizedBox(height: 18),
-        SectionTitle('LIVE READINGS'),
-        SizedBox(height: 8),
-        InfoRow(
-          icon: Icons.sensors_rounded,
-          label: 'Upper sensor',
-          value: '— cm',
-        ),
-        InfoRow(
-          icon: Icons.sensors_rounded,
-          label: 'Lower sensor',
-          value: '— cm',
+        const SizedBox(height: 18),
+        const SectionTitle('LIVE READINGS'),
+        const SizedBox(height: 8),
+        AnimatedBuilder(
+          animation: telemetry,
+          builder: (context, _) => Column(
+            children: [
+              Semantics(
+                label:
+                    'Upper sensor distance: ${distanceForScreenReader(telemetry.upperCm)}',
+                child: InfoRow(
+                  icon: Icons.sensors_rounded,
+                  label: 'Upper sensor',
+                  value: telemetry.upperCm == null
+                      ? 'No reading'
+                      : '${formatDistance(telemetry.upperCm!)} cm',
+                ),
+              ),
+              Semantics(
+                label:
+                    'Lower sensor distance: ${distanceForScreenReader(telemetry.lowerCm)}',
+                child: InfoRow(
+                  icon: Icons.sensors_rounded,
+                  label: 'Lower sensor',
+                  value: telemetry.lowerCm == null
+                      ? 'No reading'
+                      : '${formatDistance(telemetry.lowerCm!)} cm',
+                ),
+              ),
+              InfoRow(
+                icon: Icons.update_rounded,
+                label: 'Data packets received',
+                value: '${telemetry.acceptedMessages}',
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -1306,63 +1508,218 @@ class SensorsScreen extends StatelessWidget {
 }
 
 class BatteryScreen extends StatelessWidget {
-  const BatteryScreen({super.key});
+  final CaneTelemetry telemetry;
+  const BatteryScreen({super.key, required this.telemetry});
 
   @override
   Widget build(BuildContext context) {
     return AppPage(
       title: 'Battery',
-      subtitle: 'Keep track of your cane power.',
-      children: const [
-        Center(
-          child: Padding(
-            padding: EdgeInsets.all(24),
-            child: Icon(
-              Icons.battery_unknown_rounded,
-              size: 76,
-              color: primaryGreen,
-            ),
+      subtitle: 'A simple condition indicator for your cane battery.',
+      children: [
+        _BatteryConditionPanel(telemetry: telemetry),
+        const SizedBox(height: 16),
+        AnimatedBuilder(
+          animation: telemetry,
+          builder: (context, _) => Column(
+            children: [
+              InfoRow(
+                icon: Icons.battery_unknown_rounded,
+                label: 'Current condition',
+                value: batteryConditionText(telemetry.batteryCondition),
+              ),
+              const InfoRow(
+                icon: Icons.schedule_rounded,
+                label: 'Estimated runtime',
+                value: 'Not measured',
+              ),
+              InfoRow(
+                icon: Icons.power_rounded,
+                label: 'Bluetooth link',
+                value: telemetry.connected ? 'Connected' : 'Disconnected',
+              ),
+            ],
           ),
         ),
-        Text(
-          'Battery data unavailable',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            color: darkGreen,
-            fontSize: 21,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        SizedBox(height: 8),
-        Text(
-          'Battery percentage and runtime estimates will be available after hardware integration and testing.',
-          textAlign: TextAlign.center,
-        ),
-        SizedBox(height: 20),
-        InfoRow(
-          icon: Icons.battery_std_rounded,
-          label: 'Battery percentage',
-          value: '—',
-        ),
-        InfoRow(
-          icon: Icons.schedule_rounded,
-          label: 'Estimated runtime',
-          value: '—',
-        ),
-        InfoRow(
-          icon: Icons.power_rounded,
-          label: 'Power source',
-          value: 'Not detected',
-        ),
-        SizedBox(height: 16),
-        DemoNotice(),
+        const SizedBox(height: 16),
+        const DemoNotice(),
       ],
     );
   }
 }
 
+class _BatteryConditionPanel extends StatelessWidget {
+  final CaneTelemetry telemetry;
+  const _BatteryConditionPanel({required this.telemetry});
+
+  @override
+  Widget build(BuildContext context) {
+    const levels = [
+      ('High', primaryGreen),
+      ('Medium', Color(0xFF65A30D)),
+      ('Low', Color(0xFF6B7280)),
+      ('Replace', charcoalText),
+    ];
+
+    return AnimatedBuilder(
+      animation: telemetry,
+      builder: (context, _) {
+        final condition = telemetry.batteryCondition;
+        return Card(
+          clipBehavior: Clip.antiAlias,
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: lightGreen,
+                        borderRadius: BorderRadius.circular(15),
+                      ),
+                      child: const Icon(
+                        Icons.battery_3_bar_rounded,
+                        color: primaryGreen,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Battery condition',
+                            style: TextStyle(
+                              color: darkGreen,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 240),
+                            child: Text(
+                              condition == null
+                                  ? 'Waiting for a cane reading'
+                                  : 'Current condition: ${batteryConditionText(condition)}',
+                              key: ValueKey(condition),
+                              style: const TextStyle(
+                                color: Color(0xFF6B7280),
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(
+                      Icons.more_horiz_rounded,
+                      color: Color(0xFF9CA3AF),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: levels
+                      .map(
+                        (level) => _BatteryLevelChip(
+                          label: level.$1,
+                          color: level.$2,
+                          selected: condition?.name == level.$1.toLowerCase(),
+                        ),
+                      )
+                      .toList(),
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  condition == null
+                      ? 'No condition is selected yet. The Arduino must measure battery voltage and send a battery status over Bluetooth first.'
+                      : 'Status received from the cane. This is a condition band, not a precise percentage.',
+                  style: TextStyle(
+                    color: Colors.grey.shade700,
+                    height: 1.45,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _BatteryLevelChip extends StatelessWidget {
+  final String label;
+  final Color color;
+  final bool selected;
+  const _BatteryLevelChip({
+    required this.label,
+    required this.color,
+    required this.selected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      constraints: const BoxConstraints(minHeight: 42),
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+      decoration: BoxDecoration(
+        color: selected ? color.withValues(alpha: 0.14) : Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: selected ? color : const Color(0xFFD1D5DB),
+          width: selected ? 1.5 : 1,
+        ),
+      ),
+      child: Semantics(
+        label:
+            'Battery condition $label${selected ? ', current condition' : ''}',
+        selected: selected,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 7),
+            Text(
+              label,
+              style: const TextStyle(
+                color: darkGreen,
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+            if (selected) ...[
+              const SizedBox(width: 5),
+              const Icon(
+                Icons.check_circle_rounded,
+                size: 16,
+                color: darkGreen,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class BluetoothScreen extends StatefulWidget {
-  const BluetoothScreen({super.key});
+  final CaneTelemetry telemetry;
+  const BluetoothScreen({super.key, required this.telemetry});
 
   @override
   State<BluetoothScreen> createState() => _BluetoothScreenState();
@@ -1378,10 +1735,12 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
   String _status = 'Not connected';
   String? _error;
   int _receivedBytes = 0;
+  String _receiveBuffer = '';
 
   @override
   void dispose() {
     _inputSubscription?.cancel();
+    widget.telemetry.setConnected(false);
     final connection = _connection;
     if (connection != null) {
       unawaited(connection.close());
@@ -1466,15 +1825,14 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
         return;
       }
       _connection = connection;
+      _receiveBuffer = '';
       setState(() {
         _receivedBytes = 0;
         _status = 'Connected to ${_deviceName(device)}';
       });
+      widget.telemetry.setConnected(true);
       _inputSubscription = connection.input.listen(
-        (bytes) {
-          if (!mounted) return;
-          setState(() => _receivedBytes += bytes.length.toInt());
-        },
+        _handleIncoming,
         onDone: _connectionEnded,
         onError: (Object error) => _connectionEnded(error),
       );
@@ -1489,13 +1847,59 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
     }
   }
 
+  void _handleIncoming(List<int> bytes) {
+    if (!mounted) return;
+    setState(() {
+      _receivedBytes += bytes.length;
+      _error = null;
+    });
+    _receiveBuffer += utf8.decode(bytes, allowMalformed: true);
+    if (_receiveBuffer.length > 2048) {
+      _receiveBuffer = '';
+      setState(() {
+        _error =
+            'Incoming message was too long; waiting for the next data line.';
+      });
+      return;
+    }
+    while (true) {
+      final newline = _receiveBuffer.indexOf('\n');
+      if (newline < 0) break;
+      final line = _receiveBuffer.substring(0, newline).trim();
+      _receiveBuffer = _receiveBuffer.substring(newline + 1);
+      if (line.isEmpty) continue;
+      try {
+        final decoded = jsonDecode(line);
+        if (decoded is! Map) {
+          throw const FormatException('Expected a JSON object.');
+        }
+        final message = Map<String, dynamic>.from(decoded);
+        if (!widget.telemetry.applyJson(message)) {
+          throw const FormatException(
+            'No recognized cane fields in this message.',
+          );
+        }
+      } on FormatException catch (error) {
+        if (!mounted) return;
+        setState(() => _error = 'Data format not recognized: ${error.message}');
+      } catch (error) {
+        if (!mounted) return;
+        setState(() => _error = 'Could not read cane data: $error');
+      }
+    }
+  }
+
   void _connectionEnded([Object? error]) {
     if (!mounted) return;
+    final endedConnection = _connection;
+    _connection = null;
+    _inputSubscription = null;
+    endedConnection?.dispose();
     setState(() {
       _status = 'Connection closed';
       _error = error?.toString();
-      _connection = null;
     });
+    widget.telemetry.setConnected(false);
   }
 
   Future<void> _disconnect() async {
@@ -1515,6 +1919,7 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
       _receivedBytes = 0;
       _status = 'Not connected';
     });
+    widget.telemetry.setConnected(false);
   }
 
   String _deviceName(BtcDevice device) {
@@ -1525,101 +1930,128 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
   @override
   Widget build(BuildContext context) {
     final connected = _connection?.isConnected ?? false;
-    return AppPage(
-      title: 'Bluetooth',
-      subtitle: 'Find and connect to the HC-05 serial module.',
-      children: [
-        const Center(child: SmartCaneLogo(size: 92)),
-        const SizedBox(height: 14),
-        Text(
-          connected ? _status : _status,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: darkGreen,
-            fontSize: 21,
-            fontWeight: FontWeight.w800,
+    return AnimatedBuilder(
+      animation: widget.telemetry,
+      builder: (context, _) => AppPage(
+        title: 'Bluetooth',
+        subtitle: 'Find and connect to the HC-05 serial module.',
+        children: [
+          const Center(child: SmartCaneLogo(size: 92)),
+          const SizedBox(height: 14),
+          Semantics(
+            liveRegion: true,
+            child: Text(
+              _status,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: darkGreen,
+                fontSize: 21,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
           ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          connected
-              ? 'The serial link is active. Sensor values will appear after the Arduino sends a defined data format.'
-              : 'Turn on the cane and make its HC-05 module discoverable. Bluetooth Classic scanning works in the Android app, not the browser preview.',
-          textAlign: TextAlign.center,
-          style: const TextStyle(height: 1.45),
-        ),
-        const SizedBox(height: 18),
-        if (connected)
-          OutlinedButton.icon(
-            onPressed: _disconnect,
-            icon: const Icon(Icons.link_off_rounded),
-            label: const Text('Disconnect'),
-          )
-        else
-          FilledButton.icon(
-            onPressed: _scanning || _connecting ? null : _scan,
-            icon: _scanning
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.bluetooth_searching_rounded),
-            label: Text(_scanning ? 'Scanning…' : 'Find Bluetooth devices'),
-          ),
-        if (_connecting) ...[
-          const SizedBox(height: 12),
-          const LinearProgressIndicator(),
-        ],
-        if (_error != null) ...[
-          const SizedBox(height: 12),
-          Text(
-            _error!,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.redAccent, fontSize: 12),
-          ),
-        ],
-        if (_devices.isNotEmpty) ...[
-          const SizedBox(height: 22),
-          const SectionTitle('NEARBY DEVICES'),
           const SizedBox(height: 8),
-          for (final device in _devices)
-            Card(
-              child: ListTile(
-                leading: const CircleAvatar(
-                  backgroundColor: lightGreen,
-                  child: Icon(Icons.bluetooth_rounded, color: primaryGreen),
-                ),
-                title: Text(_deviceName(device)),
-                subtitle: Text(
-                  '${device.address} • ${device.bondState.name}'
-                  '${device.rssi == null ? '' : ' • ${device.rssi} dBm'}',
-                ),
-                trailing: TextButton(
-                  onPressed: _connecting ? null : () => _connect(device),
-                  child: Text(
-                    device.bondState.name.toLowerCase() == 'bonded'
-                        ? 'Connect'
-                        : 'Pair',
+          Text(
+            connected && widget.telemetry.acceptedMessages > 0
+                ? 'Receiving live updates from the cane.'
+                : connected
+                ? 'Connected. Waiting for sensor and battery updates from the cane.'
+                : 'Turn on the cane and make its HC-05 module discoverable. Bluetooth Classic scanning works in the Android app, not the browser preview.',
+            textAlign: TextAlign.center,
+            style: const TextStyle(height: 1.45),
+          ),
+          const SizedBox(height: 18),
+          if (connected)
+            OutlinedButton.icon(
+              onPressed: _disconnect,
+              icon: const Icon(Icons.link_off_rounded),
+              label: const Text('Disconnect'),
+            )
+          else
+            FilledButton.icon(
+              onPressed: _scanning || _connecting ? null : _scan,
+              icon: _scanning
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.bluetooth_searching_rounded),
+              label: Text(_scanning ? 'Scanning…' : 'Find Bluetooth devices'),
+            ),
+          if (_connecting) ...[
+            const SizedBox(height: 12),
+            const LinearProgressIndicator(),
+          ],
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _error!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: darkGreen, fontSize: 13),
+            ),
+          ],
+          if (_devices.isNotEmpty) ...[
+            const SizedBox(height: 22),
+            const SectionTitle('NEARBY DEVICES'),
+            const SizedBox(height: 8),
+            for (final device in _devices)
+              Card(
+                child: ListTile(
+                  leading: const CircleAvatar(
+                    backgroundColor: lightGreen,
+                    child: Icon(Icons.bluetooth_rounded, color: primaryGreen),
+                  ),
+                  title: Text(_deviceName(device)),
+                  subtitle: Text(
+                    '${device.address} • ${device.bondState.name}'
+                    '${device.rssi == null ? '' : ' • ${device.rssi} dBm'}',
+                  ),
+                  trailing: TextButton(
+                    onPressed: _connecting ? null : () => _connect(device),
+                    child: Text(
+                      device.bondState.name.toLowerCase() == 'bonded'
+                          ? 'Connect'
+                          : 'Pair',
+                    ),
                   ),
                 ),
               ),
+          ],
+          if (connected) ...[
+            const SizedBox(height: 18),
+            InfoRow(
+              icon: Icons.sync_rounded,
+              label: 'Live data updates',
+              value: '${widget.telemetry.acceptedMessages}',
             ),
+            InfoRow(
+              icon: Icons.data_usage_rounded,
+              label: 'Bluetooth data received',
+              value: '$_receivedBytes bytes',
+            ),
+            InfoRow(
+              icon: Icons.schedule_rounded,
+              label: 'Last valid update',
+              value: _formatPacketTime(widget.telemetry.lastUpdate),
+            ),
+          ],
+          const SizedBox(height: 16),
+          const DemoNotice(),
         ],
-        if (connected) ...[
-          const SizedBox(height: 18),
-          InfoRow(
-            icon: Icons.sync_rounded,
-            label: 'Serial bytes received',
-            value: '$_receivedBytes',
-          ),
-        ],
-        const SizedBox(height: 16),
-        const DemoNotice(),
-      ],
+      ),
     );
   }
 }
+
+String _formatPacketTime(DateTime? time) {
+  if (time == null) return 'Waiting for data';
+  final hour = time.hour.toString().padLeft(2, '0');
+  final minute = time.minute.toString().padLeft(2, '0');
+  final second = time.second.toString().padLeft(2, '0');
+  return '$hour:$minute:$second';
+}
+
 // -------------------- SETTINGS --------------------
 
 class SettingsScreen extends StatelessWidget {
@@ -1997,6 +2429,7 @@ class SensorCard extends StatelessWidget {
   final String range;
   final IconData icon;
   final VoidCallback? onTap;
+  final double? reading;
 
   const SensorCard({
     super.key,
@@ -2005,6 +2438,7 @@ class SensorCard extends StatelessWidget {
     required this.range,
     required this.icon,
     this.onTap,
+    this.reading,
   });
 
   @override
@@ -2031,12 +2465,23 @@ class SensorCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              const Text(
-                '—',
-                style: TextStyle(
-                  fontSize: 27,
-                  color: primaryGreen,
-                  fontWeight: FontWeight.w800,
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 260),
+                transitionBuilder: (child, animation) => ScaleTransition(
+                  scale: animation,
+                  child: FadeTransition(opacity: animation, child: child),
+                ),
+                child: Text(
+                  reading == null ? '—' : formatDistance(reading!),
+                  key: ValueKey(reading),
+                  semanticsLabel: reading == null
+                      ? 'No reading received'
+                      : '${formatDistance(reading!)} centimeters',
+                  style: const TextStyle(
+                    fontSize: 27,
+                    color: primaryGreen,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
               const SizedBox(width: 5),
@@ -2054,12 +2499,21 @@ class SensorCard extends StatelessWidget {
           ),
           Text(
             'Max range: $range',
-            style: const TextStyle(fontSize: 11, color: Colors.grey),
+            style: const TextStyle(fontSize: 12, color: charcoalText),
           ),
           const SizedBox(height: 8),
           Text(
             subtitle,
-            style: const TextStyle(fontSize: 11, color: Colors.grey),
+            style: const TextStyle(fontSize: 12, color: charcoalText),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            reading == null ? 'Waiting for reading' : 'Live reading',
+            style: TextStyle(
+              fontSize: 11,
+              color: reading == null ? charcoalText : darkGreen,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
       ),
@@ -2086,7 +2540,10 @@ class StatusCard extends StatelessWidget {
         contentPadding: const EdgeInsets.all(12),
         leading: Icon(icon, color: primaryGreen),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text(subtitle),
+        subtitle: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 220),
+          child: Text(subtitle, key: ValueKey(subtitle)),
+        ),
       ),
     );
   }
