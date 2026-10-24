@@ -80,8 +80,8 @@ class _AppEntryState extends State<AppEntry> {
     if (!mounted || _loading || _activeScreen != null) return;
     setState(() {
       _activeScreen = _firstLaunch
-        ? TutorialScreen(onFinished: _finishTutorial)
-        : const MainShell();
+          ? TutorialScreen(onFinished: _finishTutorial)
+          : const MainShell();
     });
   }
 
@@ -89,8 +89,8 @@ class _AppEntryState extends State<AppEntry> {
     if (!mounted) return;
     setState(() {
       _activeScreen = _firstLaunch
-        ? OnboardingScreen(onFinished: _finishOnboarding)
-        : const MainShell();
+          ? OnboardingScreen(onFinished: _finishOnboarding)
+          : const MainShell();
     });
   }
 
@@ -98,10 +98,7 @@ class _AppEntryState extends State<AppEntry> {
   Widget build(BuildContext context) {
     final screen = _activeScreen;
     if (screen == null) {
-      return SplashScreen(
-        onComplete: _continue,
-        loadingPreferences: _loading,
-      );
+      return SplashScreen(onComplete: _continue, loadingPreferences: _loading);
     }
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 360),
@@ -114,10 +111,7 @@ class _AppEntryState extends State<AppEntry> {
         ).animate(animation),
         child: child,
       ),
-      child: KeyedSubtree(
-        key: ValueKey(screen.runtimeType),
-        child: screen,
-      ),
+      child: KeyedSubtree(key: ValueKey(screen.runtimeType), child: screen),
     );
   }
 }
@@ -183,7 +177,9 @@ class _SplashScreenState extends State<SplashScreen>
                   AnimatedBuilder(
                     animation: _controller,
                     builder: (context, child) {
-                      final pulse = Curves.easeInOut.transform(_controller.value);
+                      final pulse = Curves.easeInOut.transform(
+                        _controller.value,
+                      );
                       return SizedBox(
                         width: logoBox,
                         height: logoBox,
@@ -192,13 +188,16 @@ class _SplashScreenState extends State<SplashScreen>
                           children: [
                             for (var i = 0; i < 3; i++)
                               Container(
-                                width: logoBox * (0.70 + i * 0.12 + pulse * 0.025),
-                                height: logoBox * (0.70 + i * 0.12 + pulse * 0.025),
+                                width:
+                                    logoBox * (0.70 + i * 0.12 + pulse * 0.025),
+                                height:
+                                    logoBox * (0.70 + i * 0.12 + pulse * 0.025),
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   border: Border.all(
                                     color: brightGreen.withValues(
-                                      alpha: 0.12 + (1 - pulse) * 0.08 - i * 0.025,
+                                      alpha:
+                                          0.12 + (1 - pulse) * 0.08 - i * 0.025,
                                     ),
                                     width: 1.2,
                                   ),
@@ -212,58 +211,58 @@ class _SplashScreenState extends State<SplashScreen>
                     child: SmartCaneLogo(size: logoSize),
                   ),
                   SizedBox(height: compact ? 18 : 28),
-                const Text(
-                  'SMART CANE',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 29,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 4,
-                  ),
-                ),
-                  const SizedBox(height: 10),
-                Text(
-                  'SMARTER MOVEMENT. GREATER CONFIDENCE.',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.82),
-                    fontSize: 10,
-                    letterSpacing: 2,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                  const Spacer(flex: 2),
-                const SizedBox(
-                  width: 150,
-                  child: LinearProgressIndicator(
-                    minHeight: 3,
-                    borderRadius: BorderRadius.all(Radius.circular(20)),
-                    backgroundColor: Color(0x553A4A3F),
-                    valueColor: AlwaysStoppedAnimation<Color>(brightGreen),
-                  ),
-                ),
-                  const SizedBox(height: 18),
-                Text(
-                  widget.loadingPreferences
-                      ? 'Preparing your experience...'
-                      : 'Ready when you are',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.78),
-                    fontSize: 12,
-                  ),
-                ),
-                  const Spacer(),
-                  Padding(
-                  padding: EdgeInsets.only(bottom: compact ? 12 : 24),
-                  child: Text(
-                    'SMART CANE  •  MOBILITY COMPANION',
-                    textAlign: TextAlign.center,
+                  const Text(
+                    'SMART CANE',
                     style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.65),
-                      fontSize: 9,
-                      letterSpacing: 1,
+                      color: Colors.white,
+                      fontSize: 29,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 4,
                     ),
                   ),
-                ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'SMARTER MOVEMENT. GREATER CONFIDENCE.',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.82),
+                      fontSize: 10,
+                      letterSpacing: 2,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const Spacer(flex: 2),
+                  const SizedBox(
+                    width: 150,
+                    child: LinearProgressIndicator(
+                      minHeight: 3,
+                      borderRadius: BorderRadius.all(Radius.circular(20)),
+                      backgroundColor: Color(0x553A4A3F),
+                      valueColor: AlwaysStoppedAnimation<Color>(brightGreen),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    widget.loadingPreferences
+                        ? 'Preparing your experience...'
+                        : 'Ready when you are',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.78),
+                      fontSize: 12,
+                    ),
+                  ),
+                  const Spacer(),
+                  Padding(
+                    padding: EdgeInsets.only(bottom: compact ? 12 : 24),
+                    child: Text(
+                      'SMART CANE  •  MOBILITY COMPANION',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.65),
+                        fontSize: 9,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -376,24 +375,21 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       icon: Icons.sensors_rounded,
       eyebrow: 'SMARTER DETECTION',
       title: 'More awareness,\nstep by step.',
-      description:
-          'Two detection zones are designed to help identify obstacles above and near the ground.',
+      description: 'Two detection zones are designed to help identify obstacles above and near the ground.',
       tags: ['Upper zone', 'Lower zone'],
     ),
     _IntroPage(
       icon: Icons.vibration_rounded,
       eyebrow: 'CLEAR ALERTS',
       title: 'Feel and hear\nthe difference.',
-      description:
-          'The cane is designed to use sound and vibration alerts to communicate detected obstacles.',
+      description: 'The cane is designed to use sound and vibration alerts to communicate detected obstacles.',
       tags: ['Buzzer alerts', 'Vibration alerts'],
     ),
     _IntroPage(
       icon: Icons.bluetooth_rounded,
       eyebrow: 'CONNECTED EXPERIENCE',
       title: 'Your cane,\nat a glance.',
-      description:
-          'View sensor readings and device information here once compatible hardware is connected.',
+      description: 'View sensor readings and device information here once compatible hardware is connected.',
       tags: ['Sensor readings', 'Device status'],
     ),
   ];
@@ -422,9 +418,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     try {
       await widget.onFinished();
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const MainShell()),
-      );
+      Navigator.of(
+        context,
+      ).pushReplacement(MaterialPageRoute(builder: (_) => const MainShell()));
     } catch (_) {
       if (mounted) setState(() => _finishing = false);
       rethrow;
@@ -466,7 +462,10 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                     ),
                   ),
                   const Spacer(),
-                  TextButton(onPressed: _finishing ? null : _skip, child: const Text('Skip')),
+                  TextButton(
+                    onPressed: _finishing ? null : _skip,
+                    child: const Text('Skip'),
+                  ),
                 ],
               ),
               const SizedBox(height: 10),
@@ -486,13 +485,16 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       curve: Curves.easeOut,
                     ),
                     child: SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(0.08, 0),
-                        end: Offset.zero,
-                      ).animate(CurvedAnimation(
-                        parent: _animation,
-                        curve: Curves.easeOutCubic,
-                      )),
+                      position:
+                          Tween<Offset>(
+                            begin: const Offset(0.08, 0),
+                            end: Offset.zero,
+                          ).animate(
+                            CurvedAnimation(
+                              parent: _animation,
+                              curve: Curves.easeOutCubic,
+                            ),
+                          ),
                       child: _IntroContent(page: _pages[i]),
                     ),
                   ),
@@ -529,7 +531,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(_index == _pages.length - 1 ? "Let's Begin" : 'Next'),
+                      Text(
+                        _index == _pages.length - 1 ? "Let's Begin" : 'Next',
+                      ),
                       const SizedBox(width: 8),
                       const Icon(Icons.arrow_forward_rounded, size: 19),
                     ],
@@ -613,16 +617,8 @@ class _IntroContent extends StatelessWidget {
                 ),
                 child: Icon(page.icon, size: 64, color: Colors.white),
               ),
-              Positioned(
-                top: 24,
-                right: 27,
-                child: _dot(),
-              ),
-              Positioned(
-                bottom: 32,
-                left: 25,
-                child: _dot(),
-              ),
+              Positioned(top: 24, right: 27, child: _dot()),
+              Positioned(bottom: 32, left: 25, child: _dot()),
             ],
           ),
         ),
@@ -662,34 +658,38 @@ class _IntroContent extends StatelessWidget {
           alignment: WrapAlignment.center,
           spacing: 8,
           runSpacing: 8,
-          children: page.tags.map((tag) => Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: lightGreen,
-              borderRadius: BorderRadius.circular(30),
-            ),
-            child: Text(
-              tag,
-              style: const TextStyle(
-                color: darkGreen,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          )).toList(),
+          children: page.tags
+              .map(
+                (tag) => Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: lightGreen,
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: Text(
+                    tag,
+                    style: const TextStyle(
+                      color: darkGreen,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              )
+              .toList(),
         ),
       ],
     );
   }
 
   Widget _dot() => Container(
-        width: 13,
-        height: 13,
-        decoration: const BoxDecoration(
-          color: brightGreen,
-          shape: BoxShape.circle,
-        ),
-      );
+    width: 13,
+    height: 13,
+    decoration: const BoxDecoration(color: brightGreen, shape: BoxShape.circle),
+  );
 }
 
 // -------------------- MAIN NAVIGATION --------------------
@@ -709,9 +709,8 @@ class _MainShellState extends State<MainShell> {
   void _openTutorial() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => TutorialScreen(
-          onFinished: () => Navigator.of(context).pop(),
-        ),
+        builder: (_) =>
+            TutorialScreen(onFinished: () => Navigator.of(context).pop()),
       ),
     );
   }
@@ -722,6 +721,7 @@ class _MainShellState extends State<MainShell> {
       HomeScreen(
         onOpenSensors: () => setState(() => _tab = AppTab.sensors),
         onOpenBluetooth: () => setState(() => _tab = AppTab.bluetooth),
+        onOpenBattery: () => setState(() => _tab = AppTab.battery),
         onOpenTutorial: _openTutorial,
       ),
       const SensorsScreen(),
@@ -731,10 +731,41 @@ class _MainShellState extends State<MainShell> {
     final selected = AppTab.values.indexOf(_tab);
 
     return Scaffold(
-      body: IndexedStack(index: selected, children: pages),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          for (var i = 0; i < pages.length; i++)
+            Positioned.fill(
+              child: Semantics(
+                hidden: i != selected,
+                child: IgnorePointer(
+                  ignoring: i != selected,
+                  child: AnimatedOpacity(
+                    opacity: i == selected ? 1 : 0,
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOut,
+                    child: AnimatedSlide(
+                      offset: i == selected
+                          ? Offset.zero
+                          : const Offset(0.035, 0),
+                      duration: const Duration(milliseconds: 260),
+                      curve: Curves.easeOutCubic,
+                      child: TickerMode(
+                        enabled: i == selected,
+                        child: pages[i],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: selected,
-        onDestinationSelected: (i) => setState(() => _tab = AppTab.values[i]),
+        onDestinationSelected: (i) {
+          if (i != selected) setState(() => _tab = AppTab.values[i]);
+        },
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
@@ -764,17 +795,67 @@ class _MainShellState extends State<MainShell> {
 
 // -------------------- HOME DASHBOARD --------------------
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   final VoidCallback? onOpenSensors;
   final VoidCallback? onOpenBluetooth;
+  final VoidCallback? onOpenBattery;
   final VoidCallback? onOpenTutorial;
 
   const HomeScreen({
     super.key,
     this.onOpenSensors,
     this.onOpenBluetooth,
+    this.onOpenBattery,
     this.onOpenTutorial,
   });
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _entrance;
+  late final AnimationController _pulse;
+
+  @override
+  void initState() {
+    super.initState();
+    _entrance = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1250),
+    )..forward();
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2600),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _entrance.dispose();
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  Widget _reveal(int index, Widget child) {
+    final start = (index * 0.085).clamp(0.0, 0.72).toDouble();
+    final end = (start + 0.38).clamp(0.0, 1.0).toDouble();
+    final animation = CurvedAnimation(
+      parent: _entrance,
+      curve: Interval(start, end, curve: Curves.easeOutCubic),
+    );
+    return FadeTransition(
+      opacity: animation,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 0.10),
+          end: Offset.zero,
+        ).animate(animation),
+        child: child,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -790,9 +871,8 @@ class HomeScreen extends StatelessWidget {
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => SettingsScreen(
-                  onReplayTutorial: onOpenTutorial,
-                ),
+                builder: (_) =>
+                    SettingsScreen(onReplayTutorial: widget.onOpenTutorial),
               ),
             ),
             icon: const Icon(Icons.settings_outlined),
@@ -803,128 +883,378 @@ class HomeScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [primaryGreen, brightGreen],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+            _reveal(
+              0,
+              Container(
+                clipBehavior: Clip.antiAlias,
+                padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF17231C), Color(0xFF263B2D)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(26),
+                  border: Border.all(
+                    color: brightGreen.withValues(alpha: 0.25),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: darkGreen.withValues(alpha: 0.14),
+                      blurRadius: 24,
+                      offset: const Offset(0, 12),
+                    ),
+                  ],
                 ),
-                borderRadius: BorderRadius.circular(24),
+                child: Stack(
+                  children: [
+                    Positioned(
+                      right: -34,
+                      top: -46,
+                      child: AnimatedBuilder(
+                        animation: _pulse,
+                        builder: (context, _) {
+                          final pulse = Curves.easeInOut.transform(
+                            _pulse.value,
+                          );
+                          return Container(
+                            width: 146 + 16 * pulse,
+                            height: 146 + 16 * pulse,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: brightGreen.withValues(
+                                  alpha: 0.08 + pulse * 0.10,
+                                ),
+                                width: 1.4,
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const SmartCaneLogo(size: 54),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'SMART CANE',
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.78,
+                                      ),
+                                      fontSize: 11,
+                                      letterSpacing: 2,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 7),
+                                  _ConnectionPill(
+                                    onTap: widget.onOpenBluetooth,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 23),
+                        const Text(
+                          'Your safety,\nwithin reach.',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 28,
+                            height: 1.12,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 9),
+                        Text(
+                          'Monitor your cane at a glance.',
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.76),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            ),
+            const SizedBox(height: 24),
+            _reveal(1, const SectionTitle('DEVICE STATUS')),
+            const SizedBox(height: 12),
+            _reveal(
+              1,
+              _DashboardActionCard(
+                onTap: widget.onOpenBluetooth,
+                child: const Row(
+                  children: [
+                    _StatusGlyph(icon: Icons.bluetooth_rounded),
+                    SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Bluetooth',
+                            style: TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Not connected',
+                            style: TextStyle(
+                              color: Color(0xFF6B7280),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      'Connect',
+                      style: TextStyle(
+                        color: primaryGreen,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    SizedBox(width: 5),
+                    Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 14,
+                      color: primaryGreen,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 22),
+            _reveal(
+              2,
+              SectionTitle(
+                'SENSOR MONITOR',
+                action: 'View all',
+                onAction: widget.onOpenSensors,
+              ),
+            ),
+            const SizedBox(height: 12),
+            _reveal(
+              2,
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final columns = constraints.maxWidth < 360 ? 1 : 2;
+                  final tileWidth =
+                      (constraints.maxWidth - (columns - 1) * 12) / columns;
+                  return Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      SizedBox(
+                        width: tileWidth,
+                        child: SensorCard(
+                          title: 'Upper sensor',
+                          subtitle: 'Above-ground hazards',
+                          range: '100 cm',
+                          icon: Icons.vertical_align_top_rounded,
+                          onTap: widget.onOpenSensors,
+                        ),
+                      ),
+                      SizedBox(
+                        width: tileWidth,
+                        child: SensorCard(
+                          title: 'Lower sensor',
+                          subtitle: 'Ground hazards',
+                          range: '50 cm',
+                          icon: Icons.vertical_align_bottom_rounded,
+                          onTap: widget.onOpenSensors,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 22),
+            _reveal(3, const SectionTitle('ALERT SYSTEM')),
+            const SizedBox(height: 12),
+            _reveal(
+              3,
+              const Row(
                 children: [
-                  SmartCaneLogo(size: 64),
-                  SizedBox(height: 16),
-                  Text(
-                    'Your safety,\nwithin reach.',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 27,
-                      height: 1.2,
-                      fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: StatusCard(
+                      title: 'Buzzer',
+                      subtitle: 'Not reporting',
+                      icon: Icons.notifications_active_outlined,
                     ),
                   ),
-                  SizedBox(height: 8),
-                  Text(
-                    'Monitor your Smart Cane at a glance.',
-                    style: TextStyle(color: Colors.white70),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: StatusCard(
+                      title: 'Vibration',
+                      subtitle: 'Not reporting',
+                      icon: Icons.vibration_rounded,
+                    ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 24),
-            const SectionTitle('DEVICE STATUS'),
-            const SizedBox(height: 12),
-            Card(
-              child: ListTile(
-                leading: const CircleAvatar(
-                  backgroundColor: lightGreen,
-                  child: Icon(Icons.bluetooth, color: primaryGreen),
-                ),
-                title: const Text('Bluetooth'),
-                subtitle: const Text('Not connected'),
-                trailing: TextButton(
-                  onPressed: onOpenBluetooth,
-                  child: const Text('Connect'),
-                ),
-              ),
-            ),
             const SizedBox(height: 22),
-            SectionTitle(
-              'SENSOR MONITOR',
-              action: 'View all',
-              onAction: onOpenSensors,
-            ),
-            const SizedBox(height: 12),
-            const Row(
-              children: [
-                Expanded(
-                  child: SensorCard(
-                    title: 'Upper Sensor',
-                    subtitle: 'Above-ground hazards',
-                    range: '100 cm',
-                    icon: Icons.vertical_align_top_rounded,
-                  ),
+            _reveal(
+              4,
+              _DashboardActionCard(
+                onTap: widget.onOpenBattery,
+                child: const Row(
+                  children: [
+                    _StatusGlyph(icon: Icons.battery_unknown_rounded),
+                    SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Battery',
+                            style: TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'Status unavailable',
+                            style: TextStyle(
+                              color: Color(0xFF6B7280),
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 14,
+                      color: charcoalText,
+                    ),
+                  ],
                 ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: SensorCard(
-                    title: 'Lower Sensor',
-                    subtitle: 'Ground hazards',
-                    range: '50 cm',
-                    icon: Icons.vertical_align_bottom_rounded,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 22),
-            const SectionTitle('ALERT SYSTEM'),
-            const SizedBox(height: 12),
-            const Row(
-              children: [
-                Expanded(
-                  child: StatusCard(
-                    title: 'Buzzer',
-                    subtitle: 'Not reporting',
-                    icon: Icons.notifications_active_outlined,
-                  ),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: StatusCard(
-                    title: 'Vibration',
-                    subtitle: 'Not reporting',
-                    icon: Icons.vibration_rounded,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 22),
-            const Card(
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: lightGreen,
-                  child: Icon(Icons.battery_5_bar_rounded, color: primaryGreen),
-                ),
-                title: Text('Battery'),
-                subtitle: Text('Monitoring unavailable'),
-                trailing: Text('--%'),
               ),
             ),
             const SizedBox(height: 14),
-            const DemoNotice(),
-            if (onOpenTutorial != null) ...[
+            _reveal(5, const DemoNotice()),
+            if (widget.onOpenTutorial != null) ...[
               const SizedBox(height: 14),
-              OutlinedButton.icon(
-                onPressed: onOpenTutorial,
-                icon: const Icon(Icons.school_outlined),
-                label: const Text('Learn how Smart Cane works'),
+              _reveal(
+                5,
+                OutlinedButton.icon(
+                  onPressed: widget.onOpenTutorial,
+                  icon: const Icon(Icons.school_outlined),
+                  label: const Text('Learn how Smart Cane works'),
+                ),
               ),
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ConnectionPill extends StatelessWidget {
+  final VoidCallback? onTap;
+  const _ConnectionPill({this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(30),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(30),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 7,
+                height: 7,
+                decoration: const BoxDecoration(
+                  color: brightGreen,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 7),
+              const Text(
+                'DISCONNECTED',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 9,
+                  letterSpacing: 1,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(width: 5),
+              const Icon(
+                Icons.chevron_right_rounded,
+                size: 15,
+                color: Colors.white70,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusGlyph extends StatelessWidget {
+  final IconData icon;
+  const _StatusGlyph({required this.icon});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: 46,
+    height: 46,
+    decoration: BoxDecoration(
+      color: lightGreen,
+      borderRadius: BorderRadius.circular(15),
+    ),
+    child: Icon(icon, color: primaryGreen, size: 23),
+  );
+}
+
+class _DashboardActionCard extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  const _DashboardActionCard({required this.child, this.onTap});
+
+  @override
+  State<_DashboardActionCard> createState() => _DashboardActionCardState();
+}
+
+class _DashboardActionCardState extends State<_DashboardActionCard> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedScale(
+      scale: _pressed ? 0.985 : 1,
+      duration: const Duration(milliseconds: 120),
+      curve: Curves.easeOut,
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: widget.onTap,
+          onHighlightChanged: (pressed) => setState(() => _pressed = pressed),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+            child: widget.child,
+          ),
         ),
       ),
     );
@@ -947,23 +1277,29 @@ class SensorsScreen extends StatelessWidget {
         SensorDetailCard(
           icon: Icons.vertical_align_top_rounded,
           title: 'Upper detection zone',
-          description:
-              'Designed for obstacles above the lower walking path, such as walls or hanging objects.',
+          description: 'Designed for obstacles above the lower walking path, such as walls or hanging objects.',
           range: '100 cm',
         ),
         SizedBox(height: 14),
         SensorDetailCard(
           icon: Icons.vertical_align_bottom_rounded,
           title: 'Lower detection zone',
-          description:
-              'Designed for ground-level obstacles such as steps, debris, or uneven surfaces.',
+          description: 'Designed for ground-level obstacles such as steps, debris, or uneven surfaces.',
           range: '50 cm',
         ),
         SizedBox(height: 18),
         SectionTitle('LIVE READINGS'),
         SizedBox(height: 8),
-        InfoRow(icon: Icons.sensors_rounded, label: 'Upper sensor', value: '— cm'),
-        InfoRow(icon: Icons.sensors_rounded, label: 'Lower sensor', value: '— cm'),
+        InfoRow(
+          icon: Icons.sensors_rounded,
+          label: 'Upper sensor',
+          value: '— cm',
+        ),
+        InfoRow(
+          icon: Icons.sensors_rounded,
+          label: 'Lower sensor',
+          value: '— cm',
+        ),
       ],
     );
   }
@@ -981,7 +1317,11 @@ class BatteryScreen extends StatelessWidget {
         Center(
           child: Padding(
             padding: EdgeInsets.all(24),
-            child: Icon(Icons.battery_unknown_rounded, size: 76, color: primaryGreen),
+            child: Icon(
+              Icons.battery_unknown_rounded,
+              size: 76,
+              color: primaryGreen,
+            ),
           ),
         ),
         Text(
@@ -999,9 +1339,21 @@ class BatteryScreen extends StatelessWidget {
           textAlign: TextAlign.center,
         ),
         SizedBox(height: 20),
-        InfoRow(icon: Icons.battery_std_rounded, label: 'Battery percentage', value: '—'),
-        InfoRow(icon: Icons.schedule_rounded, label: 'Estimated runtime', value: '—'),
-        InfoRow(icon: Icons.power_rounded, label: 'Power source', value: 'Not detected'),
+        InfoRow(
+          icon: Icons.battery_std_rounded,
+          label: 'Battery percentage',
+          value: '—',
+        ),
+        InfoRow(
+          icon: Icons.schedule_rounded,
+          label: 'Estimated runtime',
+          value: '—',
+        ),
+        InfoRow(
+          icon: Icons.power_rounded,
+          label: 'Power source',
+          value: 'Not detected',
+        ),
         SizedBox(height: 16),
         DemoNotice(),
       ],
@@ -1049,7 +1401,9 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
 
     try {
       if (!await _bluetooth.isSupported()) {
-        throw StateError('Bluetooth Classic is available in the Android app, not in a browser.');
+        throw StateError(
+          'Bluetooth Classic is available in the Android app, not in a browser.',
+        );
       }
       if (!await _bluetooth.isEnabled()) {
         await _bluetooth.enableBluetooth();
@@ -1095,7 +1449,9 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
       if (!paired) {
         final bonded = await _bluetooth.bondDevice(device.address);
         if (!bonded) {
-          throw StateError('Pairing was not completed. You can pair the HC-05 in Android Bluetooth settings and try again.');
+          throw StateError(
+            'Pairing was not completed. You can pair the HC-05 in Android Bluetooth settings and try again.',
+          );
         }
       }
 
@@ -1276,7 +1632,9 @@ class SettingsScreen extends StatelessWidget {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('The introduction will show the next time the app launches.'),
+        content: Text(
+          'The introduction will show the next time the app launches.',
+        ),
       ),
     );
   }
@@ -1340,26 +1698,22 @@ class _TutorialScreenState extends State<TutorialScreen> {
     _TutorialStep(
       icon: Icons.dashboard_rounded,
       title: 'Your dashboard',
-      description:
-          'Home gives you an overview of connection status, sensor zones, alert components, and device status.',
+      description: 'Home gives you an overview of connection status, sensor zones, alert components, and device status.',
     ),
     _TutorialStep(
       icon: Icons.sensors_rounded,
       title: 'Sensor zones',
-      description:
-          'The prototype is configured for an upper range up to 100 cm and a lower range up to 50 cm. Actual readings will appear after integration.',
+      description: 'The prototype is configured for an upper range up to 100 cm and a lower range up to 50 cm. Actual readings will appear after integration.',
     ),
     _TutorialStep(
       icon: Icons.vibration_rounded,
       title: 'Sound and vibration',
-      description:
-          'The planned alert system uses different buzzer patterns and vibration levels to communicate obstacle distance. The app does not control these alerts yet.',
+      description: 'The planned alert system uses different buzzer patterns and vibration levels to communicate obstacle distance. The app does not control these alerts yet.',
     ),
     _TutorialStep(
       icon: Icons.battery_charging_full_rounded,
       title: 'Battery and Bluetooth',
-      description:
-          'Battery information, pairing, and live updates will be added after the hardware communication is implemented.',
+      description: 'Battery information, pairing, and live updates will be added after the hardware communication is implemented.',
     ),
   ];
 
@@ -1404,7 +1758,9 @@ class _TutorialScreenState extends State<TutorialScreen> {
                         physics: const BouncingScrollPhysics(),
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         child: ConstrainedBox(
-                          constraints: BoxConstraints(minHeight: constraints.maxHeight - 32),
+                          constraints: BoxConstraints(
+                            minHeight: constraints.maxHeight - 32,
+                          ),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -1413,19 +1769,23 @@ class _TutorialScreenState extends State<TutorialScreen> {
                                 tween: Tween(begin: 0.82, end: 1),
                                 duration: const Duration(milliseconds: 480),
                                 curve: Curves.easeOutBack,
-                                builder: (context, scale, child) => Transform.scale(
-                                  scale: scale,
-                                  child: child,
-                                ),
+                                builder: (context, scale, child) =>
+                                    Transform.scale(scale: scale, child: child),
                                 child: Container(
-                                  width: constraints.maxHeight < 560 ? 132 : 168,
-                                  height: constraints.maxHeight < 560 ? 132 : 168,
+                                  width: constraints.maxHeight < 560
+                                      ? 132
+                                      : 168,
+                                  height: constraints.maxHeight < 560
+                                      ? 132
+                                      : 168,
                                   decoration: BoxDecoration(
                                     color: lightGreen,
                                     shape: BoxShape.circle,
                                     boxShadow: [
                                       BoxShadow(
-                                        color: primaryGreen.withValues(alpha: 0.12),
+                                        color: primaryGreen.withValues(
+                                          alpha: 0.12,
+                                        ),
                                         blurRadius: 28,
                                         spreadRadius: 2,
                                       ),
@@ -1451,13 +1811,17 @@ class _TutorialScreenState extends State<TutorialScreen> {
                               const SizedBox(height: 12),
                               AnimatedSwitcher(
                                 duration: const Duration(milliseconds: 260),
-                                transitionBuilder: (child, animation) => SlideTransition(
-                                  position: Tween<Offset>(
-                                    begin: const Offset(0, 0.12),
-                                    end: Offset.zero,
-                                  ).animate(animation),
-                                  child: FadeTransition(opacity: animation, child: child),
-                                ),
+                                transitionBuilder: (child, animation) =>
+                                    SlideTransition(
+                                      position: Tween<Offset>(
+                                        begin: const Offset(0, 0.12),
+                                        end: Offset.zero,
+                                      ).animate(animation),
+                                      child: FadeTransition(
+                                        opacity: animation,
+                                        child: child,
+                                      ),
+                                    ),
                                 child: Text(
                                   step.title,
                                   key: ValueKey('tutorial-title-$i'),
@@ -1515,10 +1879,8 @@ class _TutorialScreenState extends State<TutorialScreen> {
                   tween: Tween(begin: 0.96, end: 1),
                   duration: const Duration(milliseconds: 220),
                   curve: Curves.easeOut,
-                  builder: (context, scale, child) => Transform.scale(
-                    scale: scale,
-                    child: child,
-                  ),
+                  builder: (context, scale, child) =>
+                      Transform.scale(scale: scale, child: child),
                   child: FilledButton(
                     onPressed: _next,
                     style: FilledButton.styleFrom(
@@ -1530,7 +1892,9 @@ class _TutorialScreenState extends State<TutorialScreen> {
                     child: AnimatedSwitcher(
                       duration: const Duration(milliseconds: 180),
                       child: Text(
-                        _index == _steps.length - 1 ? 'Finish tutorial' : 'Next',
+                        _index == _steps.length - 1
+                            ? 'Finish tutorial'
+                            : 'Next',
                         key: ValueKey(_index == _steps.length - 1),
                       ),
                     ),
@@ -1632,6 +1996,7 @@ class SensorCard extends StatelessWidget {
   final String subtitle;
   final String range;
   final IconData icon;
+  final VoidCallback? onTap;
 
   const SensorCard({
     super.key,
@@ -1639,42 +2004,64 @@ class SensorCard extends StatelessWidget {
     required this.subtitle,
     required this.range,
     required this.icon,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(15),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CircleAvatar(
-              backgroundColor: lightGreen,
-              child: Icon(icon, color: primaryGreen),
-            ),
-            const SizedBox(height: 14),
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 6),
-            Text(
-              '— cm',
-              style: const TextStyle(
-                fontSize: 24,
-                color: primaryGreen,
-                fontWeight: FontWeight.bold,
+    return _DashboardActionCard(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _StatusGlyph(icon: icon),
+              const Spacer(),
+              Icon(
+                Icons.arrow_outward_rounded,
+                size: 17,
+                color: Colors.grey.shade500,
               ),
-            ),
-            Text(
-              range == '100 cm' ? 'Max range: 100 cm' : 'Max range: 50 cm',
-              style: const TextStyle(fontSize: 10, color: Colors.grey),
-            ),
-            const SizedBox(height: 5),
-            Text(
-              subtitle,
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
-            ),
-          ],
-        ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+          const SizedBox(height: 7),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              const Text(
+                '—',
+                style: TextStyle(
+                  fontSize: 27,
+                  color: primaryGreen,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(width: 5),
+              const Padding(
+                padding: EdgeInsets.only(bottom: 4),
+                child: Text(
+                  'cm',
+                  style: TextStyle(
+                    color: charcoalText,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          Text(
+            'Max range: $range',
+            style: const TextStyle(fontSize: 11, color: Colors.grey),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            subtitle,
+            style: const TextStyle(fontSize: 11, color: Colors.grey),
+          ),
+        ],
       ),
     );
   }
@@ -1839,11 +2226,7 @@ class DemoNotice extends StatelessWidget {
           Expanded(
             child: Text(
               'Demo mode: this screen is not receiving live data from the cane yet.',
-              style: TextStyle(
-                color: darkGreen,
-                fontSize: 12,
-                height: 1.45,
-              ),
+              style: TextStyle(color: darkGreen, fontSize: 12, height: 1.45),
             ),
           ),
         ],
